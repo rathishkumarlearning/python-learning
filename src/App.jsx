@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react'
 import { courseData } from './data/courseData'
+import { useAuth } from './context/AuthContext'
+import { useProgress } from './context/ProgressContext'
 import Sidebar from './components/Sidebar'
 import LessonContent from './components/LessonContent'
+import GamificationBar from './components/GamificationBar'
 import './App.css'
 
 function App() {
+  const { user, signOut } = useAuth()
+  const { progress, completeLesson, isLessonComplete } = useProgress()
+  const [showUserMenu, setShowUserMenu] = useState(false)
   const [currentLesson, setCurrentLesson] = useState(null)
-  const [completedLessons, setCompletedLessons] = useState(() => {
-    const saved = localStorage.getItem('pythonCourseProgress')
-    return saved ? JSON.parse(saved) : []
-  })
   const [expandedChapters, setExpandedChapters] = useState([1])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Use progress from Supabase
+  const completedLessons = progress.completedLessons
 
   useEffect(() => {
     // Set first lesson as default
@@ -19,10 +24,6 @@ function App() {
       setCurrentLesson(courseData.chapters[0].lessons[0])
     }
   }, [])
-
-  useEffect(() => {
-    localStorage.setItem('pythonCourseProgress', JSON.stringify(completedLessons))
-  }, [completedLessons])
 
   const toggleChapter = (chapterId) => {
     setExpandedChapters(prev => 
@@ -32,9 +33,9 @@ function App() {
     )
   }
 
-  const markComplete = (lessonId) => {
-    if (!completedLessons.includes(lessonId)) {
-      setCompletedLessons(prev => [...prev, lessonId])
+  const markComplete = async (lessonId) => {
+    if (!isLessonComplete(lessonId)) {
+      await completeLesson(lessonId, 50) // 50 XP per lesson
     }
   }
 
@@ -70,8 +71,15 @@ function App() {
     setSidebarOpen(false) // Close sidebar on mobile after selecting
   }
 
+  const handleLogout = async () => {
+    await signOut()
+  }
+
   return (
     <div className="app">
+      {/* Gamification Bar */}
+      <GamificationBar />
+
       {/* Mobile menu button */}
       <button 
         className="mobile-menu-btn"
@@ -92,6 +100,35 @@ function App() {
         )}
       </button>
 
+      {/* User Menu */}
+      <div className="user-menu-container">
+        <button 
+          className="user-menu-btn"
+          onClick={() => setShowUserMenu(!showUserMenu)}
+        >
+          <div className="user-avatar">
+            {user?.email?.[0]?.toUpperCase() || 'U'}
+          </div>
+        </button>
+        {showUserMenu && (
+          <div className="user-menu-dropdown">
+            <div className="user-menu-email">{user?.email}</div>
+            <div className="user-menu-stats">
+              <span>⭐ Level {progress.level}</span>
+              <span>✨ {progress.xp} XP</span>
+            </div>
+            <button onClick={handleLogout} className="user-menu-logout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Overlay for mobile */}
       {sidebarOpen && (
         <div 
@@ -100,27 +137,29 @@ function App() {
         />
       )}
 
-      <Sidebar 
-        course={courseData}
-        currentLesson={currentLesson}
-        completedLessons={completedLessons}
-        expandedChapters={expandedChapters}
-        onLessonSelect={handleLessonSelect}
-        onChapterToggle={toggleChapter}
-        progress={calculateProgress()}
-        isOpen={sidebarOpen}
-      />
-      <main className="main-content">
-        {currentLesson && (
-          <LessonContent 
-            lesson={currentLesson}
-            isCompleted={completedLessons.includes(currentLesson.id)}
-            onMarkComplete={() => markComplete(currentLesson.id)}
-            onNavigate={navigateToLesson}
-            courseTitle={courseData.title}
-          />
-        )}
-      </main>
+      <div className="app-main">
+        <Sidebar 
+          course={courseData}
+          currentLesson={currentLesson}
+          completedLessons={completedLessons}
+          expandedChapters={expandedChapters}
+          onLessonSelect={handleLessonSelect}
+          onChapterToggle={toggleChapter}
+          progress={calculateProgress()}
+          isOpen={sidebarOpen}
+        />
+        <main className="main-content">
+          {currentLesson && (
+            <LessonContent 
+              lesson={currentLesson}
+              isCompleted={completedLessons.includes(currentLesson.id)}
+              onMarkComplete={() => markComplete(currentLesson.id)}
+              onNavigate={navigateToLesson}
+              courseTitle={courseData.title}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }
