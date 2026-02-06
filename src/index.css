@@ -596,6 +596,8 @@ body {
 
 /* Responsive - Tablet and below */
 @media (max-width: 1024px) {
+  .main-content { margin-left: 0; padding: 70px 16px 32px; }
+  .hamburger, .menu-toggle, .mobile-menu-btn { display: flex !important; }
   .sidebar {
     width: 300px;
     transform: translateX(-100%);
